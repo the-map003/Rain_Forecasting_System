@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const connectDB = require('./config/db');
+const auth = require('./routes/auth');
 
 const app = express();
 
@@ -18,6 +19,8 @@ app.use(
 app.use(express.json());
 
 connectDB();
+
+app.use("/api/v1/auth", auth);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
