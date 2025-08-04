@@ -6,6 +6,7 @@ import axiosInstance from '../../utils/axiosInstance';
 import { API_PATHS } from '../../utils/apiPaths';
 import { FaUser } from 'react-icons/fa';
 import { IoMail } from 'react-icons/io5';
+import toast from 'react-hot-toast';
 
 const Home = () => {
   useUserAuth();
@@ -19,6 +20,7 @@ const Home = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [generatedPassword, setGeneratedPassword] = useState('');
 
   const fetchDashboardData = async () => {
     if (loading) return;
@@ -40,6 +42,7 @@ const Home = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setGeneratedPassword('');
 
     if (!fullName.trim() || !email.trim()) {
       setError('Please fill in all required fields');
@@ -52,22 +55,34 @@ const Home = () => {
     }
 
     setIsSubmitting(true);
-
+    
     try {
-      // Replace with your actual API endpoint
-      const response = await axiosInstance.post(`${API_PATHS.REGISTER_USER}`, {
-        fullName: fullName.trim(),
-        email: email.trim()
+      const response = await axiosInstance.post(API_PATHS.AUTH.ADMIN_REGISTER, {
+        firstname: fullName.trim(),
+        email: email.trim().toLowerCase()
       });
-
+      
       if (response.data) {
-        setSuccess('System user registered successfully! Default password will be sent to their email.');
+        setSuccess('User registered successfully!');
+        setGeneratedPassword(response.data.defaultPassword);
         setFullName('');
         setEmail('');
+        toast.success('User registered successfully!');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      setError(error.response?.data?.message || 'Failed to register user. Please try again.');
+      
+      if (error.response && error.response.data && error.response.data.message) {
+        setError(error.response.data.message);
+      } else if (error.response && error.response.status === 400) {
+        setError("User already exists or invalid data provided");
+      } else if (error.response && error.response.status >= 500) {
+        setError("Server error. Please try again later");
+      } else if (error.code === 'NETWORK_ERROR') {
+        setError("Network error. Please check your connection");
+      } else {
+        setError("Something went wrong. Please try again");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -147,6 +162,29 @@ const Home = () => {
                     <div className="flex items-center">
                       <div className="text-green-300 mr-3 text-lg">✅</div>
                       <p className='text-green-200 text-sm font-medium'>{success}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Generated Password Display */}
+                {generatedPassword && (
+                  <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 rounded-xl p-4">
+                    <div className="space-y-2">
+                      <h3 className="text-blue-200 font-medium">Default Password Generated</h3>
+                      <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg">
+                        <code className="text-yellow-300 font-mono">{generatedPassword}</code>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedPassword);
+                            toast.success('Password copied to clipboard!');
+                          }}
+                          className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md transition-colors"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <p className="text-blue-200 text-xs">Please save this password and share it with the user. They will be able to change it after logging in.</p>
                     </div>
                   </div>
                 )}

@@ -56,3 +56,72 @@ exports.getUserInfo = async (req, res) => {
         res.status(500).json({ message: 'Error getting user info', error: error.message });
     }
 };
+
+// Admin register user controller
+exports.adminRegisterUser = async (req, res) => {
+    const { firstname, email } = req.body;
+    try {
+        // Check if user already exists
+        let user = await User.findOne({ email });
+        if (user) {
+            return res.status(400).json({ message: 'User already exists' });
+        }
+        
+        // Generate a random password (8 characters)
+        const generatePassword = () => {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let password = '';
+            for (let i = 0; i < 8; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return password;
+        };
+        
+        const defaultPassword = generatePassword();
+        const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+        
+        // Create new user
+        user = new User({ firstname, email, password: hashedPassword });
+        await user.save();
+        
+        return res.status(201).json({ 
+            message: 'User registered successfully', 
+            defaultPassword: defaultPassword 
+        });
+    } catch (err) {
+        console.error('Admin register user error:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// Add this to the existing authController.js file
+
+// Change password controller
+exports.changePassword = async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+    
+    try {
+        // Find user by ID
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        // Verify current password
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Current password is incorrect' });
+        }
+        
+        // Hash new password and update
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+        
+        return res.status(200).json({ message: 'Password changed successfully' });
+    } catch (error) {
+        console.error('Change password error:', error);
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
