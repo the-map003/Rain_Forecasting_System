@@ -39,3 +39,19 @@
 .add-btn-fill{
     @apply text-white bg-primary;
 }
+
+/* Add this to the end of your index.css file */
+
+@keyframes rainDrop {
+  0% {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(calc(100vh + 20px));
+    opacity: 0;
+  }
+}

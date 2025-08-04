@@ -5,10 +5,10 @@ export const validateEmail = (email) => {
     return regex.test(email);
 };
 
-export const getInitials = (name) => {
-    if(!name) return "";
+export const getInitials = (firstname) => {
+    if(!firstname) return "";
 
-    const words = name.split(" ");  
+    const words = firstname.split(" ");  
     let initials = "";
 
     for (let i = 0; i < Math.min(words.length, 2); i++){  

@@ -9,6 +9,9 @@ import {
 import Login from './pages/Auth/Login';
 import SignUp from './pages/Auth/SignUp';
 import Home from './pages/Dashboard/Home';
+import Add_User from './pages/Users/Add_User';
+import Manage_User from './pages/Users/Manage_User';
+import User_Report from './pages/Users/User_Report';
 import { UserProvider } from './context/userContext';// Changed to import as a named export
 import { Toaster } from 'react-hot-toast';
 
@@ -22,6 +25,9 @@ const App = () => {
             <Route path="/login" exact element={<Login />}/>
             <Route path="/signUp" exact element={<SignUp />}/>
             <Route path="/dashboard/admin" exact element={<Home />}/>
+            <Route path="/dashboard/admin/users/add-user" exact element={<Add_User />}/>
+            <Route path="/dashboard/admin/users/manage-user" exact element={<Manage_User />}/>
+            <Route path="/dashboard/admin/users/user-report" exact element={<User_Report />}/>
         </Routes>
     </Router>
     </div>
