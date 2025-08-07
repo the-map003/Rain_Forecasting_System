@@ -1,7 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { validateSignup, validateLogin, authenticateJWT } = require('../middleware/authValidation');
+const { 
+    validateSignup, 
+    validateLogin, 
+    authenticateJWT, 
+    isAdmin,
+    validateAdminRegister,
+    validatePasswordChange 
+} = require('../middleware/authValidation');
 
 // Signup route
 router.post('/signup', validateSignup, authController.signup);
@@ -12,12 +19,10 @@ router.post('/login', validateLogin, authController.login);
 // Get user info (protected route)
 router.get('/getUser', authenticateJWT, authController.getUserInfo);
 
-// Admin register user route (protected route)
-router.post('/admin-register', authenticateJWT, authController.adminRegisterUser);
+// Admin register new user (protected route, admin only)
+router.post('/admin/register', authenticateJWT, isAdmin, validateAdminRegister, authController.adminRegisterUser);
 
-// Add this to the existing routes
-
-// Change password route (protected route)
-router.post('/change-password', authenticateJWT, authController.changePassword);
+// Change password (protected route)
+router.post('/change-password', authenticateJWT, validatePasswordChange, authController.changePassword);
 
 module.exports = router;

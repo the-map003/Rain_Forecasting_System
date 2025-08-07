@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { generatePassword } = require('../utils/passwordGenerator');
 
 // Signup controller
 exports.signup = async (req, res) => {
@@ -11,11 +12,16 @@ exports.signup = async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
         const hashedPassword = await bcrypt.hash(password, 10);
-        user = new User({ firstname, email, password: hashedPassword });
+        user = new User({ 
+            firstname, 
+            email, 
+            password: hashedPassword,
+            role: 'admin' // First user is admin by default
+        });
         await user.save();
         return res.status(201).json({ message: 'User registered successfully' });
     } catch (err) {
-        console.error('Signup error:', err); // ✅ Add this line
+        console.error('Signup error:', err);
         return res.status(500).json({ message: 'Server error' });
     }
 };
@@ -32,14 +38,25 @@ exports.login = async (req, res) => {
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        return res.json({ token, user: { firstname: user.firstname, email: user.email } });
+        const token = jwt.sign({ 
+            userId: user._id,
+            role: user.role 
+        }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        return res.json({ 
+            token, 
+            user: { 
+                firstname: user.firstname, 
+                email: user.email,
+                role: user.role,
+                passwordChanged: user.passwordChanged
+            } 
+        });
     } catch (err) {
         return res.status(500).json({ message: 'Server error' });
     }
 };
 
-//get user info
+// Get user info
 exports.getUserInfo = async (req, res) => {
     try{
         const user = await User.findById(req.user.id).select('-password');
@@ -51,59 +68,82 @@ exports.getUserInfo = async (req, res) => {
             id: user._id,
             firstname: user.firstname,
             email: user.email,
+            role: user.role,
+            passwordChanged: user.passwordChanged
         });
     }catch(error){
         res.status(500).json({ message: 'Error getting user info', error: error.message });
     }
 };
 
-// Admin register user controller
+// Admin register new user
 exports.adminRegisterUser = async (req, res) => {
-    const { firstname, email } = req.body;
     try {
-        // Check if user already exists
-        let user = await User.findOne({ email });
-        if (user) {
-            return res.status(400).json({ message: 'User already exists' });
+        // Check if the requester is an admin
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
-        
-        // Generate a random password (8 characters)
-        const generatePassword = () => {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let password = '';
-            for (let i = 0; i < 8; i++) {
-                password += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return password;
-        };
-        
-        const defaultPassword = generatePassword();
+
+        const { firstname, email } = req.body;
+
+        // Validate input
+        if (!firstname || !email) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'User with this email already exists' });
+        }
+
+        // Generate a default password
+        const defaultPassword = generatePassword(10);
         const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-        
-        // Create new user
-        user = new User({ firstname, email, password: hashedPassword });
-        await user.save();
-        
-        return res.status(201).json({ 
-            message: 'User registered successfully', 
-            defaultPassword: defaultPassword 
+
+        // Create new user with staff role
+        const newUser = new User({
+            firstname,
+            email,
+            password: hashedPassword,
+            role: 'staff',
+            passwordChanged: false
         });
-    } catch (err) {
-        console.error('Admin register user error:', err);
+
+        await newUser.save();
+
+        // Return success with the generated password
+        return res.status(201).json({
+            message: 'User registered successfully',
+            defaultPassword,
+            user: {
+                firstname: newUser.firstname,
+                email: newUser.email,
+                role: newUser.role
+            }
+        });
+    } catch (error) {
+        console.error('Admin register error:', error);
         return res.status(500).json({ message: 'Server error' });
     }
 };
 
-// Add this to the existing authController.js file
-
-// Change password controller
+// Change password
 exports.changePassword = async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-    const userId = req.user.id;
-    
     try {
-        // Find user by ID
-        const user = await User.findById(userId);
+        const { currentPassword, newPassword } = req.body;
+        
+        // Validate input
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+        
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: 'New password must be at least 6 characters' });
+        }
+        
+        // Get user
+        const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -114,9 +154,12 @@ exports.changePassword = async (req, res) => {
             return res.status(400).json({ message: 'Current password is incorrect' });
         }
         
-        // Hash new password and update
+        // Hash new password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        // Update password
         user.password = hashedPassword;
+        user.passwordChanged = true;
         await user.save();
         
         return res.status(200).json({ message: 'Password changed successfully' });

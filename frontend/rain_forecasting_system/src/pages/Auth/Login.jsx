@@ -56,7 +56,13 @@ const Login = () => {
       if(token && user){
         localStorage.setItem("token", token);
         updateUser(user);
-        navigate("/dashboard/admin");
+        
+        // Redirect based on user role
+        if (user.role === 'admin') {
+          navigate("/dashboard/admin");
+        } else {
+          navigate("/dashboard/user");
+        }
       } else {
         setError("Invalid response from server");
       }
@@ -222,12 +228,12 @@ const Login = () => {
           </form>
 
           {/* Sign Up Link */}
-          <p className='text-center text-sm text-white/70 mt-6'>
+          {/* <p className='text-center text-sm text-white/70 mt-6'>
             Don't have an account?{" "}
             <Link className='font-semibold text-blue-300 hover:text-blue-200 underline underline-offset-2 transition-colors' to="/signUp">
               Sign Up
             </Link>
-          </p>
+          </p> */}
         </div>
       </div>
 

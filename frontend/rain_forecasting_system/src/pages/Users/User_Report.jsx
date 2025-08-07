@@ -34,7 +34,7 @@ const Home = () => {
   }, []);
 
   return (
-    <DashboardLayout activeMenu="Dashboard">
+    <DashboardLayout activeMenu="UserManagement">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-blue-100">System User's Report</h1>

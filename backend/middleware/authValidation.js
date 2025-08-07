@@ -35,10 +35,48 @@ module.exports = {
         const token = authHeader.split(' ')[1];
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            req.user = { id: decoded.userId };
+            req.user = { 
+                id: decoded.userId,
+                role: decoded.role 
+            };
             next();
         } catch (err) {
             return res.status(401).json({ message: 'Invalid token' });
         }
+    },
+
+    // Admin authorization middleware
+    isAdmin: (req, res, next) => {
+        if (req.user && req.user.role === 'admin') {
+            next();
+        } else {
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+    },
+
+    // Validate admin registration input
+    validateAdminRegister: (req, res, next) => {
+        const { firstname, email } = req.body;
+        if (!firstname || !email) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+        // Basic email format check
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ message: 'Invalid email format' });
+        }
+        next();
+    },
+
+    // Validate password change input
+    validatePasswordChange: (req, res, next) => {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: 'New password must be at least 6 characters' });
+        }
+        next();
     }
 };

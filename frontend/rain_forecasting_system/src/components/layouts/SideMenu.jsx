@@ -23,13 +23,21 @@ const SideMenu = ({ activeMenu, mobile = false, closeSidebar }) => {
     }
   };
 
-
   const handleNavigation = (path) => {
     navigate(path);
     if (mobile && closeSidebar) {
       closeSidebar();
     }
   };
+
+  // Get user role from context or localStorage
+  const userRole = user?.role || 
+    (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).role : 'staff');
+
+  // Filter menu items based on user role
+  const filteredMenuItems = menuItems.filter(item => 
+    item.roles && item.roles.includes(userRole)
+  );
 
   return (
     <div className='h-full flex flex-col bg-transparent text-blue-100'>
@@ -50,7 +58,7 @@ const SideMenu = ({ activeMenu, mobile = false, closeSidebar }) => {
       <div className='flex-1 overflow-y-auto py-2'>
         <div className='px-3 py-2'>
           <p className='text-xs font-medium text-blue-400 mb-2 px-3'>MAIN MENU</p>
-            {menuItems.map((item) => {
+            {filteredMenuItems.map((item) => {
               const hasChildren = item.children && item.children.length > 0;
               const [open, setOpen] = useState(false); // This line needs to be moved **outside the loop** if you want persistence per item
 

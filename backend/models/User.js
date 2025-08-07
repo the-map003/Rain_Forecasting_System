@@ -15,6 +15,15 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    role: {
+        type: String,
+        enum: ['admin', 'staff'],
+        default: 'staff'
+    },
+    passwordChanged: {
+        type: Boolean,
+        default: false
+    },
     createdAt: {
         type: Date,
         default: Date.now
