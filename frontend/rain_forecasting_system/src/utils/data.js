@@ -14,7 +14,10 @@ import {
   ListOrdered, 
   FileText, 
   ChevronRight,
-  Lock
+  Lock,
+  Cpu,
+  Activity,
+  FileBarChart
 } from 'lucide-react';
 
 // Define menu items with role access control
@@ -66,6 +69,53 @@ export const menuItems = [
     dropdownIcon: ChevronRight, // For rendering UI
   },
   {
+    id: 'DeviceManagement',
+    label: 'Devices',
+    icon: Cpu,
+    path: null,
+    description: 'Manage IoT devices',
+    hasChildren: true,
+    roles: ['admin', 'staff'],
+    children: [
+      {
+        id: 'ManageDevices',
+        label: 'Manage Devices',
+        icon: ListOrdered,
+        path: '/dashboard/admin/devices/manage',
+        roles: ['admin'] // Only admin can manage devices
+      },
+      {
+        id: 'DeviceData',
+        label: 'Live Data',
+        icon: Activity,
+        path: '/dashboard/admin/devices/data',
+        roles: ['admin']
+      },
+      {
+        id: 'StaffDeviceData',
+        label: 'Live Data',
+        icon: Activity,
+        path: '/dashboard/user/devices/data',
+        roles: ['staff']
+      },
+      {
+        id: 'DeviceReports',
+        label: 'Device Reports',
+        icon: FileBarChart,
+        path: '/dashboard/admin/devices/reports',
+        roles: ['admin']
+      },
+      {
+        id: 'StaffDeviceReports',
+        label: 'Device Reports',
+        icon: FileBarChart,
+        path: '/dashboard/user/devices/reports',
+        roles: ['staff']
+      },
+    ],
+    dropdownIcon: ChevronRight,
+  },
+  {
     id: 'RainfallMap',
     label: 'Rainfall Map',
     icon: Map,
@@ -110,7 +160,7 @@ export const menuItems = [
         id: 'ChangePassword',
         label: 'Change Password',
         icon: Lock,
-        path: null, // Set to null to prevent navigation and use modal instead
+        path: '/settings/change-password',
       },
       // You can add more settings options here in the future
     ],
