@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include <EEPROM.h>
 
 // Create BME280 object
 Adafruit_BME280 bme;
@@ -23,10 +24,64 @@ Adafruit_BME280 bme;
 const char* ssid = "GIHANGA DYNAMICS";
 const char* password = "gihanga@2025";
 
-// MQTT broker
+// MQTT broker - same as defined in frontend MQTT_CONFIG
 const char* mqtt_server = "test.mosquitto.org";
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+// Device ID - This will be stored in EEPROM
+String deviceId = "";
+
+// EEPROM configuration
+#define EEPROM_SIZE 512
+#define DEVICE_ID_ADDR 0
+#define DEVICE_ID_LENGTH 16 // 8 bytes in hex = 16 characters
+
+// Function to handle serial commands for device ID management
+void handleSerialCommands() {
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+    
+    // Command to set device ID: SET_ID:025dfe862f858c4d
+    if (command.startsWith("SET_ID:")) {
+      String newId = command.substring(7);
+      if (newId.length() > 0 && newId.length() <= DEVICE_ID_LENGTH) {
+        saveDeviceIdToEEPROM(newId);
+        Serial.println("✅ Device ID updated successfully!");
+        Serial.println("New Device ID: " + newId);
+        Serial.println("Restarting device to apply changes...");
+        delay(1000);
+        ESP.restart();
+      } else {
+        Serial.println("❌ Invalid device ID length. Must be 1-16 characters.");
+      }
+    }
+    // Command to view current device ID
+    else if (command == "GET_ID") {
+      Serial.println("Current Device ID: " + deviceId);
+    }
+    // Command to clear device ID (reset to placeholder)
+    else if (command == "CLEAR_ID") {
+      for (int i = 0; i < DEVICE_ID_LENGTH; i++) {
+        EEPROM.write(DEVICE_ID_ADDR + i, 0);
+      }
+      EEPROM.commit();
+      Serial.println("Device ID cleared. Restarting...");
+      delay(1000);
+      ESP.restart();
+    }
+    // Command to show help
+    else if (command == "HELP") {
+      Serial.println("=== Device ID Management Commands ===");
+      Serial.println("SET_ID:xxxxx  - Set device ID (e.g., SET_ID:025dfe862f858c4d)");
+      Serial.println("GET_ID        - Show current device ID");
+      Serial.println("CLEAR_ID      - Clear device ID (reset to placeholder)");
+      Serial.println("HELP          - Show this help message");
+      Serial.println("=====================================");
+    }
+  }
+}
 
 // Function to connect to WiFi
 void setup_wifi() {
@@ -48,25 +103,104 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
+// MQTT message callback function
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived on topic: ");
+  Serial.println(topic);
+  
+  // Convert payload to string
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.print("Message: ");
+  Serial.println(message);
+  
+  // Check if this is a device ID configuration message
+  // Using the same topic structure as defined in frontend MQTT_CONFIG.getDeviceConfigTopic
+  String configTopic = "rain_forecasting/" + deviceId + "/config";
+  if (String(topic) == configTopic) {
+    // Parse JSON message to extract device ID
+    // This is a simple implementation - in production, use a JSON library
+    if (message.indexOf("device_id") > 0) {
+      int startPos = message.indexOf(":") + 2; // Skip ': "'
+      int endPos = message.indexOf("\"", startPos);
+      if (startPos > 0 && endPos > startPos) {
+        String newDeviceId = message.substring(startPos, endPos);
+        saveDeviceIdToEEPROM(newDeviceId);
+      }
+    }
+  }
+}
+
 // Function to reconnect to MQTT
 void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     String clientId = "ESP32Client-";
-    clientId += String(random(0xffff), HEX);
+    clientId += deviceId; // Use device ID as part of client ID
     if (client.connect(clientId.c_str())) {
       Serial.println("connected ✅");
+      
+      // Subscribe to device configuration topic
+      // Using the same topic structure as defined in frontend MQTT_CONFIG.getDeviceConfigTopic
+      String configTopic = "rain_forecasting/" + deviceId + "/config";
+      client.subscribe(configTopic.c_str());
+      Serial.print("Subscribed to: ");
+      Serial.println(configTopic);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println(" try again in 3 seconds...");
-      delay(3000);
+      Serial.println(" try again in 1 seconds...");
+      delay(1000);
     }
+  }
+}
+
+// Function to read device ID from EEPROM
+void readDeviceIdFromEEPROM() {
+  deviceId = "";
+  for (int i = 0; i < DEVICE_ID_LENGTH; i++) {
+    char c = EEPROM.read(DEVICE_ID_ADDR + i);
+    if (c == 0 || c == 255) break; // End of string or uninitialized EEPROM
+    deviceId += c;
+  }
+  
+  // If no device ID is stored, use a default placeholder
+  if (deviceId.length() == 0 || deviceId == String('\xFF', DEVICE_ID_LENGTH)) {
+    deviceId = "DEVICE_ID_PLACEHOLDER";
+    Serial.println("No device ID found in EEPROM, using placeholder");
+  } else {
+    Serial.print("Device ID loaded from EEPROM: ");
+    Serial.println(deviceId);
+  }
+}
+
+// Function to save device ID to EEPROM
+void saveDeviceIdToEEPROM(String id) {
+  // Only save if different from current
+  if (id != deviceId) {
+    Serial.print("Saving new device ID to EEPROM: ");
+    Serial.println(id);
+    
+    for (int i = 0; i < DEVICE_ID_LENGTH; i++) {
+      if (i < id.length()) {
+        EEPROM.write(DEVICE_ID_ADDR + i, id[i]);
+      } else {
+        EEPROM.write(DEVICE_ID_ADDR + i, 0); // Null terminator
+      }
+    }
+    EEPROM.commit();
+    deviceId = id;
   }
 }
 
 void setup() {
   Serial.begin(115200);
+
+  // Initialize EEPROM
+  EEPROM.begin(EEPROM_SIZE);
+  readDeviceIdFromEEPROM();
 
   // Initialize BME280
   if (!bme.begin(0x76)) {
@@ -83,12 +217,17 @@ void setup() {
 
   setup_wifi();
   client.setServer(mqtt_server, 1883);
+  
+  // Subscribe to a configuration topic to receive device ID updates
+  client.setCallback(callback);
 
   Serial.println("Rain Forecasting System Started...");
+  Serial.println("Device ID: " + deviceId);
   Serial.println("=================================");
 }
 
 void loop() {
+  handleSerialCommands();
   if (!client.connected()) {
     reconnect();
   }
@@ -138,7 +277,9 @@ void loop() {
   }
 
   // Publish data to MQTT broker
+  // Create JSON payload with device data
   String payload = "{";
+  payload += "\"device_id\": \"" + deviceId + "\",";
   payload += "\"temperature\": " + String(temperature) + ",";
   payload += "\"humidity\": " + String(humidity) + ",";
   payload += "\"pressure\": " + String(pressure) + ",";
@@ -147,9 +288,13 @@ void loop() {
   payload += "\"forecast_rain\": " + String(forecastRain ? "true" : "false");
   payload += "}";
 
-  client.publish("rain_forecasting/data", payload.c_str());
+  // Include device ID in the MQTT topic
+  // Using the same topic structure as defined in frontend MQTT_CONFIG.getDeviceTopic
+  String topic = "rain_forecasting/" + deviceId + "/data";
+  client.publish(topic.c_str(), payload.c_str());
 
-  Serial.println("Published to MQTT: " + payload);
+  Serial.println("Published to MQTT topic: " + topic);
+  Serial.println("Payload: " + payload);
   Serial.println("---------------------------------");
 
   delay(2000);

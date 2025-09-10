@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Management Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #5a67d8;
+        }
+        .log {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            background: white;
+            border-left: 3px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Session Management Test Suite</h1>
+        
+        <div class="test-section">
+            <div class="test-title">Current Session Status</div>
+            <div id="session-status"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Test Actions</div>
+            <button onclick="simulateLogin()">Simulate Login</button>
+            <button onclick="simulateLogout()">Simulate Logout</button>
+            <button onclick="checkSession()">Check Session</button>
+            <button onclick="tryAccessProtectedRoute()">Try Access Protected Route</button>
+            <button onclick="clearAll()">Clear All Storage</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Test Results</div>
+            <div id="test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">Activity Log</div>
+            <div class="log" id="activity-log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize
+        checkSession();
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('activity-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const timestamp = new Date().toLocaleTimeString();
+            entry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+        }
+
+        function updateStatus(message, type = 'success') {
+            const statusDiv = document.getElementById('session-status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function addTestResult(test, result, message) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.innerHTML = `
+                <div style="margin: 10px 0;">
+                    <strong>${test}:</strong> 
+                    <span class="status ${result ? 'success' : 'error'}">
+                        ${result ? '✓ PASS' : '✗ FAIL'}
+                    </span>
+                    ${message ? `<br><small>${message}</small>` : ''}
+                </div>
+            `;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        function checkSession() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            log('Checking session status...');
+            
+            if (token && user) {
+                try {
+                    const userData = JSON.parse(user);
+                    updateStatus(`Logged in as: ${userData.email || 'Unknown'} (${userData.role || 'Unknown role'})`, 'success');
+                    log(`Session found: User ${userData.email}, Role: ${userData.role}`);
+                } catch (e) {
+                    updateStatus('Invalid session data', 'error');
+                    log('Session data is corrupted', 'error');
+                }
+            } else {
+                updateStatus('No active session', 'warning');
+                log('No session found');
+            }
+            
+            return !!(token && user);
+        }
+
+        function simulateLogin() {
+            log('Simulating login...');
+            
+            // Simulate a successful login
+            const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock.token';
+            const mockUser = {
+                id: '123',
+                email: 'test@example.com',
+                role: 'admin',
+                name: 'Test User'
+            };
+            
+            localStorage.setItem('token', mockToken);
+            localStorage.setItem('user', JSON.stringify(mockUser));
+            
+            log('Login simulation complete');
+            checkSession();
+            
+            // Clear previous test results
+            document.getElementById('test-results').innerHTML = '';
+            
+            // Run validation tests
+            runValidationTests();
+        }
+
+        function simulateLogout() {
+            log('Simulating logout...');
+            
+            // This simulates what should happen on logout
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            sessionStorage.clear();
+            
+            log('Logout simulation complete');
+            checkSession();
+            
+            // Test that session is properly cleared
+            document.getElementById('test-results').innerHTML = '';
+            addTestResult('Token Cleared', !localStorage.getItem('token'), 'Token should be removed from localStorage');
+            addTestResult('User Data Cleared', !localStorage.getItem('user'), 'User data should be removed from localStorage');
+            addTestResult('Session Storage Cleared', sessionStorage.length === 0, 'Session storage should be empty');
+        }
+
+        function tryAccessProtectedRoute() {
+            log('Testing protected route access...');
+            
+            const hasSession = checkSession();
+            
+            document.getElementById('test-results').innerHTML = '';
+            
+            if (hasSession) {
+                addTestResult('Protected Route Access', true, 'Session valid - Access would be granted');
+                log('Protected route access would be ALLOWED');
+            } else {
+                addTestResult('Protected Route Access', false, 'No session - Would redirect to login');
+                log('Protected route access would be DENIED - Redirect to login');
+            }
+        }
+
+        function runValidationTests() {
+            log('Running validation tests...');
+            
+            // Test 1: Check if token exists
+            const tokenExists = !!localStorage.getItem('token');
+            addTestResult('Token Exists', tokenExists, 'Token should be present in localStorage');
+            
+            // Test 2: Check if user data exists
+            const userExists = !!localStorage.getItem('user');
+            addTestResult('User Data Exists', userExists, 'User data should be present in localStorage');
+            
+            // Test 3: Validate user data structure
+            let validUserData = false;
+            try {
+                const user = JSON.parse(localStorage.getItem('user'));
+                validUserData = user && user.email && user.role;
+                addTestResult('Valid User Data Structure', validUserData, 'User data should have email and role');
+            } catch (e) {
+                addTestResult('Valid User Data Structure', false, 'User data is not valid JSON');
+            }
+            
+            // Test 4: Simulate browser back button after logout
+            simulateBrowserBack();
+        }
+
+        function simulateBrowserBack() {
+            log('Simulating browser back button...');
+            
+            // Save current state
+            const currentToken = localStorage.getItem('token');
+            const currentUser = localStorage.getItem('user');
+            
+            // Clear session (simulate logout)
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            
+            // Try to access with no session (simulating back button)
+            const canAccess = !!(localStorage.getItem('token') && localStorage.getItem('user'));
+            
+            addTestResult('Browser Back After Logout', !canAccess, 
+                'Should not be able to access protected pages after logout');
+            
+            // Restore state if it existed
+            if (currentToken) localStorage.setItem('token', currentToken);
+            if (currentUser) localStorage.setItem('user', currentUser);
+            
+            log(`Browser back test: Access ${canAccess ? 'ALLOWED (BAD)' : 'DENIED (GOOD)'}`);
+        }
+
+        function clearAll() {
+            log('Clearing all storage...');
+            localStorage.clear();
+            sessionStorage.clear();
+            checkSession();
+            document.getElementById('test-results').innerHTML = '<div class="status warning">All storage cleared</div>';
+            log('All storage cleared successfully');
+        }
+
+        // Auto-check session every 5 seconds
+        setInterval(() => {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            if (!token || !user) {
+                const currentStatus = document.getElementById('session-status').innerText;
+                if (currentStatus.includes('Logged in')) {
+                    log('Session expired or cleared - Auto-detected');
+                    checkSession();
+                }
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

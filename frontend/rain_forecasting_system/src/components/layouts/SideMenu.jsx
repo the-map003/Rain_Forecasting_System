@@ -37,7 +37,18 @@ const SideMenu = ({ activeMenu, mobile = false, closeSidebar }) => {
   // Filter menu items based on user role
   const filteredMenuItems = menuItems.filter(item => 
     item.roles && item.roles.includes(userRole)
-  );
+  ).map(item => {
+    // If item has children, filter them based on role too
+    if (item.children) {
+      return {
+        ...item,
+        children: item.children.filter(child => 
+          !child.roles || child.roles.includes(userRole)
+        )
+      };
+    }
+    return item;
+  });
 
   return (
     <div className='h-full flex flex-col bg-transparent text-blue-100'>

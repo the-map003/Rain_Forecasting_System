@@ -1,0 +1,287 @@
+const Device = require('../models/Device');
+const mqttService = require('../services/mqttService');
+
+// @desc    Register a new device
+// @route   POST /api/devices
+// @access  Private
+exports.registerDevice = async (req, res) => {
+    try {
+        const { phoneNumber, name } = req.body;
+
+        // Validate required fields
+        if (!phoneNumber || !name) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Phone number and name are required' 
+            });
+        }
+
+        // Create new device (deviceId is auto-generated in the model)
+        const device = await Device.create({
+            phoneNumber,
+            name,
+            userId: req.user ? req.user.id : null
+        });
+
+        // Send device configuration via MQTT
+        try {
+            await mqttService.configureDevice(device.deviceId);
+            console.log(`Configuration sent to device ${device.deviceId}`);
+        } catch (mqttError) {
+            console.error('Error sending MQTT configuration:', mqttError);
+            // Don't fail the registration if MQTT fails
+        }
+
+        res.status(201).json({
+            success: true,
+            data: device
+        });
+    } catch (error) {
+        console.error('Error registering device:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get all devices
+// @route   GET /api/devices
+// @access  Private
+exports.getDevices = async (req, res) => {
+    try {
+        const devices = await Device.find();
+        
+        res.status(200).json({
+            success: true,
+            count: devices.length,
+            data: devices
+        });
+    } catch (error) {
+        console.error('Error fetching devices:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get single device
+// @route   GET /api/devices/:id
+// @access  Private
+exports.getDevice = async (req, res) => {
+    try {
+        const device = await Device.findById(req.params.id);
+
+        if (!device) {
+            return res.status(404).json({
+                success: false,
+                message: 'Device not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: device
+        });
+    } catch (error) {
+        console.error('Error fetching device:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get device by deviceId
+// @route   GET /api/devices/deviceId/:deviceId
+// @access  Private
+exports.getDeviceByDeviceId = async (req, res) => {
+    try {
+        const device = await Device.findOne({ deviceId: req.params.deviceId });
+
+        if (!device) {
+            return res.status(404).json({
+                success: false,
+                message: 'Device not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: device
+        });
+    } catch (error) {
+        console.error('Error fetching device by deviceId:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update device
+// @route   PUT /api/devices/:id
+// @access  Private
+exports.updateDevice = async (req, res) => {
+    try {
+        const { phoneNumber, name, isActive } = req.body;
+        
+        let device = await Device.findById(req.params.id);
+
+        if (!device) {
+            return res.status(404).json({
+                success: false,
+                message: 'Device not found'
+            });
+        }
+
+        // Update fields
+        device = await Device.findByIdAndUpdate(
+            req.params.id,
+            { phoneNumber, name, isActive, updatedAt: Date.now() },
+            { new: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            data: device
+        });
+    } catch (error) {
+        console.error('Error updating device:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Delete device
+// @route   DELETE /api/devices/:id
+// @access  Private
+exports.deleteDevice = async (req, res) => {
+    try {
+        const device = await Device.findById(req.params.id);
+
+        if (!device) {
+            return res.status(404).json({
+                success: false,
+                message: 'Device not found'
+            });
+        }
+
+        await device.remove();
+
+        res.status(200).json({
+            success: true,
+            data: {}
+        });
+    } catch (error) {
+        console.error('Error deleting device:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update device last data received timestamp
+// @route   PUT /api/devices/:deviceId/data-received
+// @access  Public (for MQTT service)
+exports.updateLastDataReceived = async (req, res) => {
+    try {
+        const device = await Device.findOne({ deviceId: req.params.deviceId });
+
+        if (!device) {
+            return res.status(404).json({
+                success: false,
+                message: 'Device not found'
+            });
+        }
+
+        device.lastDataReceived = Date.now();
+        await device.save();
+
+        res.status(200).json({
+            success: true,
+            data: device
+        });
+    } catch (error) {
+        console.error('Error updating last data received:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Configure device via MQTT
+// @route   POST /api/devices/configure-mqtt
+// @access  Private
+exports.configureDeviceViaMQTT = async (req, res) => {
+    try {
+        const { deviceId } = req.body;
+        const mqttService = require('../services/mqttService');
+
+        if (!deviceId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Device ID is required'
+            });
+        }
+
+        // Send configuration via MQTT
+        await mqttService.configureDevice(deviceId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Configuration sent to device via MQTT'
+        });
+    } catch (error) {
+        console.error('Error configuring device via MQTT:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send MQTT configuration',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get real-time device data
+// @route   GET /api/devices/realtime-data
+// @access  Private
+exports.getRealtimeDeviceData = async (req, res) => {
+    try {
+        const devices = await Device.find({ isActive: true }).select('deviceId name latestData lastDataReceived');
+        
+        const deviceData = {};
+        devices.forEach(device => {
+            if (device.latestData) {
+                deviceData[device.deviceId] = {
+                    ...device.latestData.toObject(),
+                    deviceName: device.name,
+                    lastUpdate: device.lastDataReceived
+                };
+            }
+        });
+        
+        res.status(200).json({
+            success: true,
+            data: deviceData
+        });
+    } catch (error) {
+        console.error('Error fetching realtime device data:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};

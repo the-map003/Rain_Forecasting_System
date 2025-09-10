@@ -50,8 +50,21 @@ export const UserProvider = ({ children }) => {
     localStorage.removeItem('token');
   };
   
+  const logout = () => {
+    // Clear all session data
+    setUser(null);
+    setIsLoading(false);
+    
+    // Clear localStorage completely
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    
+    // Clear session storage if any
+    sessionStorage.clear();
+  };
+  
   return (
-    <UserContext.Provider value={{ user, updateUser, clearUser, isLoading }}>
+    <UserContext.Provider value={{ user, updateUser, clearUser, logout, isLoading }}>
       {children}
     </UserContext.Provider>
   );

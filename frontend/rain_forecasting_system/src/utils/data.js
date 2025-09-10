@@ -110,7 +110,7 @@ export const menuItems = [
         id: 'ChangePassword',
         label: 'Change Password',
         icon: Lock,
-        path: '/settings/change-password',
+        path: null, // Set to null to prevent navigation and use modal instead
       },
       // You can add more settings options here in the future
     ],

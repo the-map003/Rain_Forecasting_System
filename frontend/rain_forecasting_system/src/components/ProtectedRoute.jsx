@@ -1,16 +1,45 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useContext, useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { UserContext } from '../context/userContext';
 
 const ProtectedRoute = ({ children }) => {
-  // Check if token exists in localStorage
-  const isAuthenticated = !!localStorage.getItem('token');
+  const navigate = useNavigate();
+  const { user, isLoading } = useContext(UserContext);
   
-  if (isAuthenticated) {
-    return children;
+  // Get token and user from localStorage for immediate check
+  const token = localStorage.getItem('token');
+  const storedUser = localStorage.getItem('user');
+  
+  useEffect(() => {
+    // If no token or user data, redirect to login
+    if (!token || !storedUser) {
+      navigate('/login');
+    }
+  }, [token, storedUser, navigate]);
+  
+  // Show loading state while checking auth
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>;
+  }
+  
+  // Check if both token and user data exist
+  if (token && storedUser) {
+    try {
+      // Validate that user data is parseable
+      JSON.parse(storedUser);
+      return children;
+    } catch (error) {
+      // If user data is corrupted, clear and redirect
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      return <Navigate to="/login" replace />;
+    }
   }
   
   // If not authenticated, redirect to login
-  return <Navigate to="/login" />;
+  return <Navigate to="/login" replace />;
 };
 
 export default ProtectedRoute;

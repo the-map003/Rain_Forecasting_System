@@ -13,6 +13,9 @@ import Change_Password from './pages/Users/Change_Password';
 import Add_User from './pages/Users/Add_User';
 import Manage_User from './pages/Users/Manage_User';
 import User_Report from './pages/Users/User_Report';
+import ManageDevices from './pages/Devices/ManageDevices';
+import DeviceData from './pages/Devices/DeviceData';
+import DeviceReports from './pages/Devices/DeviceReports';
 
 import { UserProvider } from './context/userContext';
 import { Toaster } from 'react-hot-toast';
@@ -87,37 +90,64 @@ const App = () => {
         <Router>
           <Routes>
             <Route path="/" element={<Root />}/>
-            <Route path="/login" exact element={<Login />}/>
-            <Route path="/signUp" exact element={<SignUp />}/>
-            <Route path="/dashboard/admin" exact element={
+            <Route path="/login" element={<Login />}/>
+            <Route path="/signUp" element={<SignUp />}/>
+            <Route path="/dashboard/admin" element={
               <AdminRoute>
                 <Home />
               </AdminRoute>
             }/>
-            <Route path="/dashboard/user" exact element={
+            <Route path="/dashboard/user" element={
               <StaffRoute>
                 <User_Dashboard />
               </StaffRoute>
             }/>
-            <Route path="/dashboard/admin/users/add-user" exact element={
+            <Route path="/dashboard/admin/users/add-user" element={
               <AdminRoute>
                 <Add_User />
               </AdminRoute>
             }/>
-            <Route path="/dashboard/admin/users/manage-user" exact element={
+            <Route path="/dashboard/admin/users/manage-user" element={
               <AdminRoute>
                 <Manage_User />
               </AdminRoute>
             }/>
-            <Route path="/dashboard/admin/users/user-report" exact element={
+            <Route path="/dashboard/admin/users/user-report" element={
               <AdminRoute>
                 <User_Report />
               </AdminRoute>
             }/>
-            <Route path="/settings/change-password" exact element={
+            <Route path="/settings/change-password" element={
               <ProtectedRoute>
                 <Change_Password />
               </ProtectedRoute>
+            }/>
+            {/* Device Management Routes */}
+            <Route path="/dashboard/admin/devices/manage" element={
+              <AdminRoute>
+                <ManageDevices />
+              </AdminRoute>
+            }/>
+            <Route path="/dashboard/admin/devices/data" element={
+              <AdminRoute>
+                <DeviceData />
+              </AdminRoute>
+            }/>
+            <Route path="/dashboard/admin/devices/reports" element={
+              <AdminRoute>
+                <DeviceReports />
+              </AdminRoute>
+            }/>
+            {/* Staff Device Routes */}
+            <Route path="/dashboard/user/devices/data" element={
+              <StaffRoute>
+                <DeviceData />
+              </StaffRoute>
+            }/>
+            <Route path="/dashboard/user/devices/reports" element={
+              <StaffRoute>
+                <DeviceReports />
+              </StaffRoute>
             }/>
           </Routes>
         </Router>

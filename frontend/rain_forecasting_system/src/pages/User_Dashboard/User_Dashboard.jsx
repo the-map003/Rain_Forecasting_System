@@ -76,15 +76,13 @@ const Home = () => {
                 <p className="text-sm text-blue-300">{user?.email || 'staff@example.com'}</p>
               </div>
             </div>
-            {!user?.passwordChanged && (
-              <button 
-                onClick={() => setShowPasswordModal(true)}
-                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                <Lock className="h-4 w-4" />
-                <span>Change Password</span>
-              </button>
-            )}
+            <button 
+              onClick={() => setShowPasswordModal(true)}
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <Lock className="h-4 w-4" />
+              <span>Change Password</span>
+            </button>
           </div>
         </div>
 
