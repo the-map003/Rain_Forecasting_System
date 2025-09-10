@@ -18,6 +18,7 @@ import { UserProvider } from './context/userContext';
 import { Toaster } from 'react-hot-toast';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import AdminRoute from './components/AdminRoute';
+import StaffRoute from './components/StaffRoute';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const Root = () => {
@@ -60,8 +61,10 @@ const Root = () => {
       {isAuthenticated ? (
         userRole === 'admin' ? (
           <Navigate to="/dashboard/admin" />
-        ) : (
+        ) : userRole === 'staff' ? (
           <Navigate to="/dashboard/user" />
+        ) : (
+          <Navigate to="/login" />
         )
       ) : (
         <Navigate to="/login" />
@@ -91,7 +94,11 @@ const App = () => {
                 <Home />
               </AdminRoute>
             }/>
-            <Route path="/dashboard/user" exact element={<User_Dashboard />}/>
+            <Route path="/dashboard/user" exact element={
+              <StaffRoute>
+                <User_Dashboard />
+              </StaffRoute>
+            }/>
             <Route path="/dashboard/admin/users/add-user" exact element={
               <AdminRoute>
                 <Add_User />
