@@ -78,7 +78,7 @@ client.on('error', (error) => {
 console.log('Press Ctrl+C to exit\n');
 
 // Configuration - using the same configuration as in frontend/apiPaths.js
-const API_URL = 'http://localhost:8000/api/v1';
+const API_URL = 'https://rain-forecasting-system.onrender.com/api/v1';
 const MQTT_BROKER = 'test.mosquitto.org';
 const MQTT_PORT = 1883;
 const MQTT_TOPIC_PREFIX = 'rain_forecasting';

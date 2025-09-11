@@ -32,33 +32,8 @@ const Navbar = ({ activeMenu, toggleSidebar }) => {
         </div>
       </div>
 
-      <div className='hidden md:flex items-center bg-slate-800 bg-opacity-70 rounded-full px-4 py-2 flex-1 max-w-xl mx-4 border border-blue-900'>
-        <FiSearch className="text-blue-300 mr-2" />
-        <input
-          type="text"
-          placeholder="Search for locations, forecasts..."
-          className="bg-transparent border-none outline-none w-full text-sm text-blue-100 placeholder-blue-400"
-        />
-      </div>
 
       <div className='flex items-center gap-4'>
-        <div className='hidden sm:flex items-center gap-1 bg-blue-900 bg-opacity-50 px-3 py-1 rounded-full border border-blue-700'>
-          <Droplets className="h-4 w-4 text-blue-300" />
-          <span className='text-xs font-medium text-blue-200'>72%</span>
-        </div>
-        
-        <div className='hidden sm:flex items-center gap-1 bg-indigo-900 bg-opacity-50 px-3 py-1 rounded-full border border-indigo-700'>
-          <Sun className="h-4 w-4 text-yellow-300" />
-          <span className='text-xs font-medium text-blue-200'>24°C</span>
-        </div>
-
-        <button
-          className='relative text-blue-300 hover:text-blue-100 transition-colors'
-          onClick={toggleNotifications}
-        >
-          <HiOutlineBell className="h-6 w-6" />
-          <span className='absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center'>3</span>
-        </button>
 
         {user && (
           <div className='flex items-center gap-2'>
@@ -72,34 +47,6 @@ const Navbar = ({ activeMenu, toggleSidebar }) => {
           </div>
         )}
       </div>
-
-      {showNotifications && (
-        <div className='absolute top-16 right-4 bg-slate-800 bg-opacity-90 backdrop-blur-sm shadow-lg rounded-lg w-80 mt-2 z-50 border border-blue-800 overflow-hidden text-white'>
-          <div className='p-3 border-b border-blue-900'>
-            <h3 className='font-medium text-blue-200'>Notifications</h3>
-          </div>
-          <div className='max-h-96 overflow-y-auto'>
-            <div className='p-3 border-b border-blue-900 hover:bg-slate-700'>
-              <p className='text-sm font-medium text-blue-100'>Heavy Rain Alert</p>
-              <p className='text-xs text-blue-300'>Expected heavy rainfall in your area</p>
-              <p className='text-xs text-blue-500 mt-1'>2 hours ago</p>
-            </div>
-            <div className='p-3 border-b border-blue-900 hover:bg-slate-700'>
-              <p className='text-sm font-medium text-blue-100'>Forecast Updated</p>
-              <p className='text-xs text-blue-300'>Weekly forecast has been updated</p>
-              <p className='text-xs text-blue-500 mt-1'>Yesterday</p>
-            </div>
-            <div className='p-3 hover:bg-slate-700'>
-              <p className='text-sm font-medium text-blue-100'>System Maintenance</p>
-              <p className='text-xs text-blue-300'>Scheduled maintenance in 2 days</p>
-              <p className='text-xs text-blue-500 mt-1'>2 days ago</p>
-            </div>
-          </div>
-          <div className='p-2 border-t border-blue-900 text-center'>
-            <button className='text-xs text-blue-300 hover:text-blue-100'>View All</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

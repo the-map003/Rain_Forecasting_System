@@ -1,5 +1,5 @@
-export const BASE_URL = "http://localhost:8000";
-export const API_BASE_URL = "http://localhost:8000/api/v1";
+export const BASE_URL = "https://rain-forecasting-system.onrender.com";
+export const API_BASE_URL = "https://rain-forecasting-system.onrender.com/api/v1";
 
 // MQTT Configuration
 export const MQTT_CONFIG = {
