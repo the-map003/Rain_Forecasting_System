@@ -9,7 +9,8 @@ const {
     deleteDevice,
     updateLastDataReceived,
     configureDeviceViaMQTT,
-    getRealtimeDeviceData
+    getRealtimeDeviceData,
+    getAllDevicesLastData
 } = require('../controllers/deviceController');
 
 const { authenticateJWT, isAdmin } = require('../middleware/authValidation');
@@ -25,6 +26,10 @@ router.route('/')
 // Route to get real-time device data
 router.route('/realtime-data')
     .get(authenticateJWT, getRealtimeDeviceData);
+
+// Route to get last data for all devices
+router.route('/last-data')
+    .get(authenticateJWT, getAllDevicesLastData);
 
 // Route to get device by deviceId
 router.route('/deviceId/:deviceId')

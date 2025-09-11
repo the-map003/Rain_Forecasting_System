@@ -56,7 +56,6 @@ const ManageDevices = () => {
   }, [navigate]);
 
   const fetchDevices = async () => {
-    if (loading) return;
     setLoading(true);
     
     try {

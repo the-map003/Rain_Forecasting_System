@@ -6,242 +6,143 @@ import { Thermometer, Droplets, Wind, CloudRain, Wifi, Clock, RefreshCw, Activit
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { API_BASE_URL, MQTT_CONFIG } from '../../utils/apiPaths';
-import mqttService from '../../utils/mqttService';
-import MQTTDebugPanel from '../../components/MQTTDebugPanel';
+import mqttDirectService from '../../utils/mqttDirectService'; // Changed to direct MQTT
 
 const DeviceData = () => {
   const navigate = useNavigate();
   const { user } = useContext(UserContext);
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [deviceData, setDeviceData] = useState({});
+  const [deviceData, setDeviceData] = useState(() => {
+    // Initialize with data from localStorage if available
+    const savedData = localStorage.getItem('deviceData');
+    return savedData ? JSON.parse(savedData) : {};
+  });
   const [loading, setLoading] = useState(true);
-  const [mqttClient, setMqttClient] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState({});
   const [backendConnected, setBackendConnected] = useState(false);
-  const [mqttInitialized, setMqttInitialized] = useState(false);
+  const [mqttConnected, setMqttConnected] = useState(false);
 
   useEffect(() => {
-    // Check authentication on component mount
+    // Check authentication
     const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (!token || !storedUser) {
+    if (!token) {
       toast.error('Session expired. Please login again.');
       navigate('/login');
       return;
     }
-    
-    // Parse and validate user data
-    try {
-      JSON.parse(storedUser);
-    } catch (error) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      navigate('/login');
-      return;
-    }
-    
-    // Fetch devices - MQTT will be initialized after devices are fetched
+
+    // Fetch devices and initialize MQTT
     fetchDevices();
-    
+
+    // Setup MQTT connection status listener
+    mqttDirectService.onConnectionChange((connected, error) => {
+      setMqttConnected(connected);
+      if (connected) {
+        console.log('MQTT connected successfully');
+      } else if (error) {
+        console.error('MQTT connection error:', error);
+      }
+    });
+
+    // Periodically refresh backend device status every 30 seconds
+    const interval = setInterval(() => {
+      fetchAllDevicesLastData();
+    }, 30000);
+
     return () => {
-      // Clear any polling interval if it exists
-      if (mqttClient && mqttClient.interval) {
-        clearInterval(mqttClient.interval);
-      }
-      
-      // Unsubscribe and disconnect from MQTT if using direct MQTT
-      if (mqttClient && mqttClient.service) {
-        // Unsubscribe from all device topics
-        if (mqttClient.subscriptions) {
-          Object.keys(mqttClient.subscriptions).forEach(deviceId => {
-            mqttClient.service.unsubscribeFromDevice(deviceId);
-          });
-        }
-        
-        // Disconnect from MQTT broker
-        mqttClient.service.disconnect();
-      }
-      
-      // Reset MQTT initialization state
-      setMqttInitialized(false);
+      clearInterval(interval);
+      // Cleanup: unsubscribe from all topics
+      devices.forEach(device => {
+        mqttDirectService.unsubscribeFromDevice(device.deviceId);
+      });
+      // Save current data to localStorage before unmounting
+      localStorage.setItem('deviceData', JSON.stringify(deviceData));
     };
-  }, [navigate, mqttClient]);
+  }, [navigate]);
 
   const fetchDevices = async () => {
     try {
       const token = localStorage.getItem('token');
-      
-      // Check if token exists
-      if (!token) {
-        toast.error('Authentication token missing. Please login again.');
-        navigate('/login');
-        return;
-      }
-      
       const response = await axios.get(`${API_BASE_URL}/devices`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       setDevices(response.data.data);
-      setLoading(false);
       setBackendConnected(true);
       
-      // Initialize connection status for all devices
-      const status = {};
+      // Initialize MQTT for each device
       response.data.data.forEach(device => {
-        status[device.deviceId] = isDeviceOnline(device.lastDataReceived);
+        initializeDeviceMQTT(device.deviceId);
       });
-      setConnectionStatus(status);
       
-      // If we have devices, initialize MQTT
-      if (response.data.data.length > 0 && !mqttInitialized) {
-        initializeMQTT();
-      }
+      // Fetch last known data for all devices from backend
+      fetchAllDevicesLastData();
+      
     } catch (error) {
       console.error('Error fetching devices:', error);
       setBackendConnected(false);
       
-      // Handle 401 Unauthorized errors
-      if (error.response && error.response.status === 401) {
+      if (error.response?.status === 401) {
         toast.error('Session expired. Please login again.');
         localStorage.removeItem('token');
-        localStorage.removeItem('user');
         navigate('/login');
-      } else {
-        toast.error('Failed to fetch devices - Backend not available');
       }
-      
+    } finally {
       setLoading(false);
     }
   };
 
-  const fetchRealtimeData = async () => {
+  // Fetch last known data for all devices and merge with localStorage
+  const fetchAllDevicesLastData = async () => {
     try {
-      // First check if we have devices and backend connection
-      if (devices.length === 0 || !backendConnected) return;
-      
       const token = localStorage.getItem('token');
-      
-      // Check if token exists
-      if (!token) {
-        console.error('Authentication token missing');
-        return;
-      }
-      
-      const response = await axios.get(`${API_BASE_URL}/devices/realtime-data`, {
+      const response = await axios.get(`${API_BASE_URL}/devices/last-data`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
       if (response.data.success) {
-        setDeviceData(response.data.data);
-        
-        // Update connection status based on last update time
-        const status = {};
-        Object.keys(response.data.data).forEach(deviceId => {
-          const data = response.data.data[deviceId];
-          status[deviceId] = data.lastUpdate ? isDeviceOnline(data.lastUpdate) : false;
+        // Merge with existing data from localStorage
+        setDeviceData(prevData => {
+          const merged = { ...response.data.data, ...prevData };
+          localStorage.setItem('deviceData', JSON.stringify(merged));
+          return merged;
         });
-        setConnectionStatus(status);
       }
     } catch (error) {
-      // Only log the error once, don't spam the console
-      if (!error.logged) {
-        console.error('Error fetching realtime data:', error);
-        error.logged = true;
-      }
-      
-      // Handle 401 Unauthorized errors
-      if (error.response && error.response.status === 401) {
-        // Only redirect to login if not already polling
-        if (!mqttClient || !mqttClient.interval) {
-          toast.error('Session expired. Please login again.');
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          navigate('/login');
-        }
-      } 
-      // Don't show toast for network errors to avoid spamming
-      else if (error.message !== 'Network Error' && error.code !== 'ERR_NETWORK') {
-        toast.error('Error fetching real-time data');
-      }
+      console.error('Error fetching all devices last data:', error);
+      // Not critical, so don't show error to user
     }
   };
 
-  const initializeMQTT = () => {
-    try {
-      if (mqttInitialized) return; // Prevent multiple initializations
+  // fetchLastKnownData is now replaced by fetchAllDevicesLastData above.
+  // (left empty for clarity or can be removed)
+  const fetchLastKnownData = () => {};
+
+  const initializeDeviceMQTT = (deviceId) => {
+    console.log(`🔧 Initializing MQTT for device: ${deviceId}`);
+    
+    mqttDirectService.subscribeToDevice(deviceId, (message, topic, receivedDeviceId) => {
+      console.log(`🎯 MQTT callback triggered for device ${receivedDeviceId}:`, message);
+      // Update device data with timestamp
+      const now = new Date().toISOString();
+      const newData = {
+        ...message,
+        lastUpdate: now,
+        timestamp: now,
+        _fromMqtt: true // Add a flag for UI badge
+      };
       
-      console.log('Starting MQTT connection...');
-      setMqttInitialized(true);
-      
-      // Connect to MQTT broker
-      mqttService.connect();
-      
-      // Subscribe to each device's MQTT topic
-      const deviceSubscriptions = {};
-      
-      devices.forEach(device => {
-        const topic = mqttService.subscribeToDevice(device.deviceId, (message) => {
-          // Handle incoming MQTT message
-          console.log(`Received MQTT data for device ${device.deviceId}:`, message);
-          
-          // Update device data in state
-          setDeviceData(prevData => ({
-            ...prevData,
-            [device.deviceId]: {
-              name: device.name,
-              temperature: message.temperature,
-              humidity: message.humidity,
-              pressure: message.pressure,
-              rainValue: message.rain_value,
-              rainDetected: message.rain_detected === 'true' || message.rain_detected === true,
-              forecastRain: message.forecast_rain === 'true' || message.forecast_rain === true,
-              lastUpdate: new Date().toISOString()
-            }
-          }));
-          
-          // Update connection status
-          setConnectionStatus(prevStatus => ({
-            ...prevStatus,
-            [device.deviceId]: true
-          }));
-          
-          // Update device last data received on server
-          mqttService.updateDeviceDataReceived(device.deviceId)
-            .catch(err => console.error('Error updating device data received:', err));
-        });
-        
-        deviceSubscriptions[device.deviceId] = topic;
+      setDeviceData(prevData => {
+        const updatedData = {
+          ...prevData,
+          [receivedDeviceId]: newData
+        };
+        localStorage.setItem('deviceData', JSON.stringify(updatedData));
+        return updatedData;
       });
       
-      // Store MQTT client and subscriptions for cleanup
-      setMqttClient({
-        service: mqttService,
-        subscriptions: deviceSubscriptions
-      });
-      
-      // Also fetch initial data from API to populate the UI faster
-      fetchRealtimeData();
-      
-      // Only show success message once
-      if (!mqttClient) {
-        toast.success('MQTT real-time monitoring started');
-      }
-    } catch (error) {
-      console.error('Error initializing MQTT monitoring:', error);
-      toast.error('Failed to start MQTT monitoring');
-      
-      // Fallback to HTTP polling if MQTT fails (only if backend is connected)
-      if (backendConnected) {
-        console.log('Falling back to HTTP polling...');
-        const interval = setInterval(fetchRealtimeData, 5000);
-        setMqttClient({ interval });
-      } else {
-        console.log('Backend not connected, skipping HTTP polling fallback');
-      }
-    }
+      // Update device last data received on server
+      updateDeviceLastDataReceived(receivedDeviceId);
+    });
   };
 
   const updateDeviceLastDataReceived = async (deviceId) => {
@@ -257,12 +158,15 @@ const DeviceData = () => {
     }
   };
 
-  const isDeviceOnline = (lastDataReceived) => {
-    if (!lastDataReceived) return false;
-    const lastUpdate = new Date(lastDataReceived);
+  // Determine if device is online based on lastUpdate or timestamp
+  const isDeviceOnline = (data) => {
+    if (!data) return false;
+    const last = data.lastUpdate || data.timestamp;
+    if (!last) return false;
+    const lastUpdate = new Date(last);
     const now = new Date();
-    const diffMinutes = (now - lastUpdate) / (1000 * 60);
-    return diffMinutes < 5;
+    const diffSeconds = (now - lastUpdate) / 1000;
+    return diffSeconds < 30;
   };
 
   const formatTimestamp = (timestamp) => {
@@ -283,27 +187,37 @@ const DeviceData = () => {
   return (
     <DashboardLayout activeMenu="DeviceManagement">
       <div className="space-y-6">
+        {/* Connection Status Badge */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-blue-100">Device Data Monitor</h1>
             <p className="text-blue-300">Real-time monitoring of IoT device data and status.</p>
           </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </button>
+          <div className="flex items-center gap-4">
+            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+              mqttConnected 
+                ? 'bg-green-500/20 text-green-400' 
+                : 'bg-red-500/20 text-red-400'
+            }`}>
+              MQTT: {mqttConnected ? 'Connected' : 'Disconnected'}
+            </div>
+            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+              backendConnected 
+                ? 'bg-green-500/20 text-green-400' 
+                : 'bg-red-500/20 text-red-400'
+            }`}>
+              API: {backendConnected ? 'Connected' : 'Disconnected'}
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </button>
+          </div>
         </div>
         
-        {/* MQTT Debug Panel */}
-        <MQTTDebugPanel 
-          mqttClient={mqttClient} 
-          devices={devices} 
-          deviceData={deviceData}
-          backendConnected={backendConnected}
-        />
 
         {/* Device Selector */}
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6">
@@ -335,8 +249,8 @@ const DeviceData = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {(selectedDevice ? [selectedDevice] : devices).map(device => {
               const data = deviceData[device.deviceId];
-              const isOnline = connectionStatus[device.deviceId];
-              const rainStatus = data ? getRainStatus(data.rain_detected === 'true', data.forecast_rain === 'true') : null;
+              const isOnline = isDeviceOnline(data);
+              const rainStatus = data ? getRainStatus(data.rainDetected || data.rain_detected, data.forecastRain || data.forecast_rain) : null;
               
               return (
                 <div key={device.deviceId} className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300">
@@ -351,15 +265,24 @@ const DeviceData = () => {
                           <Wifi className="h-5 w-5" />
                         </span>
                       ) : (
-                        <span className="text-gray-400" title="Offline">
-                          <Wifi className="h-5 w-5" />
-                        </span>
+                        <>
+                          <span className="text-gray-400" title="Offline">
+                            <Wifi className="h-5 w-5" />
+                          </span>
+                          <span className="ml-2 px-2 py-1 rounded-full bg-red-700/30 text-red-300 text-xs font-bold">Offline</span>
+                        </>
                       )}
                     </div>
                   </div>
 
-                  {data ? (
+                  {data && isOnline ? (
                     <>
+                      {/* MQTT Badge */}
+                      {data._fromMqtt && (
+                        <div className="mb-2 px-3 py-1 rounded-full bg-green-700/30 text-green-300 text-xs font-bold inline-block">
+                          LIVE FROM MQTT
+                        </div>
+                      )}
                       {/* Rain Status */}
                       <div className="mb-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
                         <div className="flex items-center justify-between">
@@ -417,7 +340,7 @@ const DeviceData = () => {
                   ) : (
                     <div className="text-center py-8 text-white/60">
                       <Activity className="h-12 w-12 mx-auto mb-3 text-white/40" />
-                      <p className="mb-2 text-white/70">No data received yet</p>
+                      <p className="mb-2 text-white/70">Device is offline. No sensor data available.</p>
                       <p className="text-xs text-white/50">Waiting for device to transmit...</p>
                     </div>
                   )}

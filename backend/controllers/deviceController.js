@@ -73,13 +73,29 @@ exports.getDevices = async (req, res) => {
 // @access  Private
 exports.getDevice = async (req, res) => {
     try {
-        const device = await Device.findById(req.params.id);
+        const { id } = req.params;
+        let device;
 
-        if (!device) {
-            return res.status(404).json({
-                success: false,
-                message: 'Device not found'
-            });
+        // Handle special case for 'latest-data' ID
+        if (id === 'latest-data') {
+            device = await Device.findOne().sort({ lastDataReceived: -1 });
+            
+            if (!device) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'No devices found'
+                });
+            }
+        } else {
+            // Normal device lookup by ID
+            device = await Device.findById(id);
+
+            if (!device) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Device not found'
+                });
+            }
         }
 
         res.status(200).json({
@@ -251,6 +267,24 @@ exports.configureDeviceViaMQTT = async (req, res) => {
             message: 'Failed to send MQTT configuration',
             error: error.message
         });
+    }
+};
+
+// @desc    Get latest data for all devices
+// @route   GET /api/devices/last-data
+// @access  Private
+exports.getAllDevicesLastData = async (req, res) => {
+    try {
+        const devices = await Device.find();
+        // Create a dictionary keyed by deviceId for easier frontend merge
+        const data = {};
+        devices.forEach(device => {
+            data[device.deviceId] = device;
+        });
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error('Error fetching all devices last data:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch devices last data' });
     }
 };
 

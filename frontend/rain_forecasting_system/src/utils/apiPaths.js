@@ -3,13 +3,19 @@ export const API_BASE_URL = "http://localhost:8000/api/v1";
 
 // MQTT Configuration
 export const MQTT_CONFIG = {
-    BROKER_URL: "test.mosquitto.org",
+    BROKER_URL: 'wss://test.mosquitto.org:8081',
+    FALLBACK_BROKERS: [
+        'wss://test.mosquitto.org:8080',
+        'wss://broker.hivemq.com:8000/mqtt',
+        'wss://mqtt.eclipseprojects.io:443/mqtt'
+    ],
     PORT: 1883, // For ESP32 devices (raw MQTT)
-    WS_PORT: 8080, // For frontend (WebSocket MQTT)
+    WS_PORT: 8084, // For frontend (WebSocket MQTT)
     TOPIC_PREFIX: "rain_forecasting",
     // Function to generate device-specific topic
     getDeviceTopic: (deviceId) => `rain_forecasting/${deviceId}/data`,
-    getDeviceConfigTopic: (deviceId) => `rain_forecasting/${deviceId}/config`
+    getDeviceConfigTopic: (deviceId) => `rain_forecasting/${deviceId}/config`,
+    getConfigTopic: (deviceId) => `rain_forecasting/${deviceId}/config` // Alias for consistency
 };
 
 export const API_PATHS = {
