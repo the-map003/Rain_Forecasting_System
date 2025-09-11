@@ -116,38 +116,6 @@ export const menuItems = [
     dropdownIcon: ChevronRight,
   },
   {
-    id: 'RainfallMap',
-    label: 'Rainfall Map',
-    icon: Map,
-    path: '/rainfall/map',
-    description: 'Geographical precipitation',
-    roles: ['admin', 'staff'] // Visible to both roles
-  },
-  {
-    id: 'Analytics',
-    label: 'Analytics',
-    icon: BarChart3,
-    path: '/analytics',
-    description: 'Weather trends & patterns',
-    roles: ['admin', 'staff'] // Visible to both roles
-  },
-  {
-    id: 'Alerts',
-    label: 'Alerts & Notifications',
-    icon: Bell,
-    path: '/alerts',
-    description: 'Weather warnings & updates',
-    roles: ['admin', 'staff'] // Visible to both roles
-  },
-  {
-    id: 'HistoricalData',
-    label: 'Historical Data',
-    icon: History,
-    path: '/historical',
-    description: 'Past weather records',
-    roles: ['admin', 'staff'] // Visible to both roles
-  },
-  {
     id: 'Settings',
     label: 'Settings',
     icon: Settings,
@@ -168,23 +136,3 @@ export const menuItems = [
   },
 ];
 
-export const quickActions = [
-  {
-    id: 'daily-forecast',
-    label: 'Daily Forecast',
-    icon: Calendar,
-    path: '/forecast/daily',
-  },
-  {
-    id: 'humidity-levels',
-    label: 'Humidity Levels',
-    icon: Droplets,
-    path: '/metrics/humidity',
-  },
-  {
-    id: 'storm-tracker',
-    label: 'Storm Tracker',
-    icon: CloudLightning,
-    path: '/tracker/storm',
-  },
-];
