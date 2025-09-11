@@ -8,6 +8,7 @@ import {
 import Login from './pages/Auth/Login';
 import SignUp from './pages/Auth/SignUp';
 import Home from './pages/Dashboard/Home';
+import Portal from './pages/Portal';
 import User_Dashboard from './pages/User_Dashboard/User_Dashboard';
 import Change_Password from './pages/Users/Change_Password';
 import Add_User from './pages/Users/Add_User';
@@ -58,22 +59,15 @@ const Root = () => {
   // Get user role from localStorage
   const userRole = user?.role || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).role : null);
 
-  // redirect to appropriate dashboard based on role if authenticated, otherwise redirect to login
+  // If authenticated, redirect to appropriate dashboard; otherwise show public Portal page
+  if (isAuthenticated) {
+    if (userRole === 'admin') return <Navigate to="/dashboard/admin" />;
+    if (userRole === 'staff') return <Navigate to="/dashboard/user" />;
+    return <Navigate to="/login" />;
+  }
   return (
     <>
-      {isAuthenticated ? (
-        userRole === 'admin' ? (
-          <Navigate to="/dashboard/admin" />
-        ) : userRole === 'staff' ? (
-          <Navigate to="/dashboard/user" />
-        ) : (
-          <Navigate to="/login" />
-        )
-      ) : (
-        <Navigate to="/login" />
-      )}
-      
-      {/* Password Change Modal */}
+      <Portal />
       <ChangePasswordModal 
         isOpen={showPasswordModal} 
         onClose={() => setShowPasswordModal(false)} 

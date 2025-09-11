@@ -11,7 +11,9 @@ const {
     configureDeviceViaMQTT,
     getRealtimeDeviceData,
     getAllDevicesLastData,
-    getHistoricalSensorData
+    getHistoricalSensorData,
+    getDeviceByPhoneNumber,
+    getHistoricalSensorDataPublic
 } = require('../controllers/deviceController');
 
 const { authenticateJWT, isAdmin } = require('../middleware/authValidation');
@@ -35,6 +37,10 @@ router.route('/last-data')
 // Route to get historical sensor data for reports
 router.route('/historical-data')
     .get(authenticateJWT, getHistoricalSensorData);
+
+// Public routes for end-user portal
+router.get('/public/by-phone/:phoneNumber', getDeviceByPhoneNumber);
+router.get('/public/historical-data', getHistoricalSensorDataPublic);
 
 // Route to get device by deviceId
 router.route('/deviceId/:deviceId')

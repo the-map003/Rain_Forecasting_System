@@ -1,6 +1,29 @@
 const Device = require('../models/Device');
 const mqttService = require('../services/mqttService');
 
+// @desc    Get device by phone number (public)
+// @route   GET /api/v1/devices/public/by-phone/:phoneNumber
+// @access  Public
+exports.getDeviceByPhoneNumber = async (req, res) => {
+    try {
+        const cleanedPhone = (req.params.phoneNumber || '').replace(/\s+/g, '');
+        if (!cleanedPhone) {
+            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        const device = await Device.findOne({ phoneNumber: cleanedPhone });
+
+        if (!device) {
+            return res.status(404).json({ success: false, message: 'No device registered with this phone number' });
+        }
+
+        return res.status(200).json({ success: true, data: device });
+    } catch (error) {
+        console.error('Error fetching device by phone number:', error);
+        res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+
 // @desc    Register a new device
 // @route   POST /api/devices
 // @access  Private
@@ -418,5 +441,65 @@ exports.getHistoricalSensorData = async (req, res) => {
             message: 'Server error',
             error: error.message
         });
+    }
+};
+
+// @desc    Public: Get historical sensor data for a device
+// @route   GET /api/v1/devices/public/historical-data
+// @access  Public
+exports.getHistoricalSensorDataPublic = async (req, res) => {
+    try {
+        const { deviceId, startDate, endDate } = req.query;
+
+        if (!deviceId) {
+            return res.status(400).json({ success: false, message: 'deviceId is required' });
+        }
+
+        // Build query based on parameters
+        const query = { deviceId };
+
+        if (startDate || endDate) {
+            query.timestamp = {};
+            if (startDate) query.timestamp.$gte = new Date(startDate);
+            if (endDate) {
+                const endDateTime = new Date(endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                query.timestamp.$lte = endDateTime;
+            }
+        }
+
+        const SensorData = require('../models/SensorData');
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 200;
+        const skip = (page - 1) * limit;
+
+        const data = await SensorData.find(query)
+            .sort({ timestamp: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await SensorData.countDocuments(query);
+
+        // Simple stats
+        const stats = {
+            totalRecords: total,
+            avgTemperature: data.length ? (data.reduce((s, r) => s + r.temperature, 0) / data.length).toFixed(1) : 0,
+            avgHumidity: data.length ? (data.reduce((s, r) => s + r.humidity, 0) / data.length).toFixed(1) : 0,
+            avgPressure: data.length ? (data.reduce((s, r) => s + r.pressure, 0) / data.length).toFixed(1) : 0,
+            rainEvents: data.filter(r => r.rainDetected).length
+        };
+
+        res.status(200).json({
+            success: true,
+            data: {
+                records: data,
+                stats,
+                pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching public historical sensor data:', error);
+        res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
 };

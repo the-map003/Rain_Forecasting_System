@@ -20,6 +20,16 @@ Adafruit_BME280 bme;
 #define TEMP_BASELINE 28.0
 #define TEMP_DROP_THRESHOLD 5.0    // Temperature drop indicator
 
+// Buzzer timing constants
+#define BUZZER_ACTIVE_TIME 15000    // 15 seconds in milliseconds
+#define BUZZER_SILENT_TIME 60000    // 1 minute in milliseconds
+
+// Buzzer state variables
+unsigned long buzzerStartTime = 0;
+bool buzzerActive = false;
+bool buzzerInSilentPeriod = false;
+bool lastRainCondition = false;
+
 // WiFi credentials
 const char* ssid = "GIHANGA DYNAMICS";
 const char* password = "gihanga@2025";
@@ -195,6 +205,54 @@ void saveDeviceIdToEEPROM(String id) {
   }
 }
 
+// Function to handle buzzer timing logic
+void handleBuzzer(bool rainCondition) {
+  unsigned long currentTime = millis();
+  
+  // If rain condition changes from false to true, reset timing
+  if (rainCondition && !lastRainCondition) {
+    buzzerStartTime = currentTime;
+    buzzerActive = true;
+    buzzerInSilentPeriod = false;
+    digitalWrite(BUZZER_PIN, HIGH);
+    Serial.println("🚨 Buzzer activated - Rain condition detected!");
+  }
+  
+  // If no rain condition, turn off buzzer and reset states
+  if (!rainCondition) {
+    digitalWrite(BUZZER_PIN, LOW);
+    buzzerActive = false;
+    buzzerInSilentPeriod = false;
+    if (lastRainCondition) {
+      Serial.println("🔇 Buzzer deactivated - No rain condition");
+    }
+  }
+  
+  // Handle timing for active rain condition
+  if (rainCondition) {
+    unsigned long elapsedTime = currentTime - buzzerStartTime;
+    
+    if (buzzerActive && elapsedTime >= BUZZER_ACTIVE_TIME) {
+      // Switch to silent period
+      digitalWrite(BUZZER_PIN, LOW);
+      buzzerActive = false;
+      buzzerInSilentPeriod = true;
+      buzzerStartTime = currentTime; // Reset timer for silent period
+      Serial.println("🔇 Buzzer entering silent period (1 minute)");
+    }
+    else if (buzzerInSilentPeriod && elapsedTime >= BUZZER_SILENT_TIME) {
+      // Switch back to active period
+      digitalWrite(BUZZER_PIN, HIGH);
+      buzzerActive = true;
+      buzzerInSilentPeriod = false;
+      buzzerStartTime = currentTime; // Reset timer for active period
+      Serial.println("🚨 Buzzer reactivated after silent period");
+    }
+  }
+  
+  lastRainCondition = rainCondition;
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -265,16 +323,9 @@ void loop() {
       forecastRain = true;
   }
 
-  // Buzzer alert
-  if (rainDetected || forecastRain) {
-    digitalWrite(BUZZER_PIN, HIGH);
-    delay(500);
-    digitalWrite(BUZZER_PIN, LOW);
-    delay(500);
-  } else {
-    digitalWrite(BUZZER_PIN, LOW);
-    delay(2000);
-  }
+  // Handle buzzer with new timing logic
+  bool rainCondition = rainDetected || forecastRain;
+  handleBuzzer(rainCondition);
 
   // Publish data to MQTT broker
   // Create JSON payload with device data

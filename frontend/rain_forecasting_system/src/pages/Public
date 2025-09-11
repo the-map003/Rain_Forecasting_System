@@ -1,0 +1,315 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../../utils/apiPaths';
+import mqttDirectService from '../../utils/mqttDirectService';
+import weatherService from '../../utils/weatherService';
+import { Activity, CloudOff, CloudRain, Droplets, Thermometer, Wind, LogIn, BarChart2 } from 'lucide-react';
+
+const Portal = () => {
+  const navigate = useNavigate();
+  const [phoneInput, setPhoneInput] = useState('');
+  const [device, setDevice] = useState(null);
+  const [liveData, setLiveData] = useState(null);
+  const [mqttConnected, setMqttConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [weatherData, setWeatherData] = useState(null);
+  const [forecastData, setForecastData] = useState([]);
+  const [activeTab, setActiveTab] = useState('live'); // live | reports | weather
+
+  useEffect(() => {
+    mqttDirectService.onConnectionChange((connected) => setMqttConnected(connected));
+    // Weather initial fetch
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Manage MQTT subscription lifecycle when device changes
+    if (!device?.deviceId) return;
+    const deviceId = device.deviceId;
+    mqttDirectService.subscribeToDevice(deviceId, (message, _topic, receivedId) => {
+      if (receivedId !== deviceId) return;
+      const now = new Date().toISOString();
+      setLiveData({ ...message, lastUpdate: now, _fromMqtt: true });
+    });
+    return () => {
+      mqttDirectService.unsubscribeFromDevice(deviceId);
+    };
+  }, [device]);
+
+  const fetchWeather = async () => {
+    try {
+      const current = await weatherService.getCurrentWeather();
+      setWeatherData(current);
+      const forecast = await weatherService.getForecast();
+      setForecastData(forecast);
+    } catch (err) {
+      console.error('Weather load error:', err);
+    }
+  };
+
+  const handleLookup = async (e) => {
+    e.preventDefault();
+    const cleaned = phoneInput.replace(/\s+/g, '');
+    if (!cleaned) {
+      toast.error('Please enter a phone number');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/devices/public/by-phone/${encodeURIComponent(cleaned)}`);
+      if (res.data?.success && res.data.data) {
+        setDevice(res.data.data);
+        toast.success('Device found');
+        setActiveTab('live');
+      } else {
+        setDevice(null);
+        toast.error('No device registered with that phone number');
+      }
+    } catch (err) {
+      console.error(err);
+      setDevice(null);
+      const msg = err.response?.data?.message || 'Lookup failed';
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isOnline = useMemo(() => {
+    if (!liveData?.lastUpdate) return false;
+    const last = new Date(liveData.lastUpdate);
+    return (Date.now() - last.getTime()) / 1000 < 30;
+  }, [liveData]);
+
+  const renderLive = () => (
+    <div className="space-y-4">
+      {!device ? (
+        <div className="text-white/70">Enter your phone number to view your device's live data.</div>
+      ) : !liveData ? (
+        <div className="text-center py-8 text-white/60">
+          <Activity className="h-12 w-12 mx-auto mb-3 text-white/40" />
+          <p>No live data yet. Device may be offline.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 bg-white/5 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3 text-white/80">
+              <Thermometer className="h-5 w-5 text-orange-400" />
+              <span>Temperature</span>
+            </div>
+            <span className="text-white font-semibold">{Number(liveData.temperature).toFixed(1)}°C</span>
+          </div>
+          <div className="p-4 bg-white/5 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3 text-white/80">
+              <Droplets className="h-5 w-5 text-blue-400" />
+              <span>Humidity</span>
+            </div>
+            <span className="text-white font-semibold">{Number(liveData.humidity).toFixed(1)}%</span>
+          </div>
+          <div className="p-4 bg-white/5 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3 text-white/80">
+              <Wind className="h-5 w-5 text-cyan-400" />
+              <span>Pressure</span>
+            </div>
+            <span className="text-white font-semibold">{Number(liveData.pressure).toFixed(1)} hPa</span>
+          </div>
+          <div className="p-4 bg-white/5 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3 text-white/80">
+              <CloudRain className="h-5 w-5 text-purple-400" />
+              <span>Rain Sensor</span>
+            </div>
+            <span className="text-white font-semibold">{liveData.rain_value}</span>
+          </div>
+        </div>
+      )}
+      {device && (
+        <div className="flex items-center gap-3 text-sm">
+          <span className={`px-2 py-1 rounded-full ${isOnline ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+            {isOnline ? 'Online' : 'Offline'}
+          </span>
+          <span className="text-white/60">MQTT: {mqttConnected ? 'Connected' : 'Disconnected'}</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const [reports, setReports] = useState({ loading: false, data: null });
+  const fetchReports = async () => {
+    if (!device?.deviceId) return;
+    setReports({ loading: true, data: null });
+    try {
+      const res = await axios.get(`${API_BASE_URL}/devices/public/historical-data`, {
+        params: { deviceId: device.deviceId, limit: 50 }
+      });
+      setReports({ loading: false, data: res.data?.data || null });
+    } catch (err) {
+      console.error(err);
+      setReports({ loading: false, data: null });
+      toast.error('Failed to load reports');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reports') fetchReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, device?.deviceId]);
+
+  const renderReports = () => (
+    <div className="space-y-4">
+      {!device ? (
+        <div className="text-white/70">Lookup your device first.</div>
+      ) : reports.loading ? (
+        <div className="flex justify-center py-6"><div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-300 rounded-full"></div></div>
+      ) : !reports.data ? (
+        <div className="text-white/60">No report data available.</div>
+      ) : (
+        <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-white"><BarChart2 className="h-5 w-5" /><span>Recent Records</span></div>
+            <div className="text-sm text-white/60">Total: {reports.data.pagination.total}</div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {reports.data.records.map((r) => (
+              <div key={r._id} className="p-3 bg-white/5 rounded border border-white/10 text-sm text-white/80">
+                <div className="flex justify-between"><span>{new Date(r.timestamp).toLocaleString()}</span><span>{r.rainDetected ? '🌧️' : r.forecastRain ? '☁️' : '☀️'}</span></div>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <div>T: {r.temperature.toFixed(1)}°C</div>
+                  <div>H: {r.humidity.toFixed(1)}%</div>
+                  <div>P: {r.pressure.toFixed(1)} hPa</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderWeather = () => (
+    <div className="space-y-4">
+      {!weatherData ? (
+        <div className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-300"></div>
+        </div>
+      ) : (
+        <>
+          <div className="bg-slate-800 bg-opacity-50 rounded-lg shadow-md p-4 border border-blue-800">
+            <h2 className="text-lg font-semibold text-blue-100 mb-4">Current Weather in Kigali, Rwanda</h2>
+            <div className="bg-slate-900 bg-opacity-50 rounded-lg p-6 border border-blue-900">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  {weatherData?.icon ? (
+                    <img src={weatherService.getWeatherIconUrl(weatherData.icon)} alt="Weather icon" className="w-16 h-16 mr-4" />
+                  ) : (
+                    <div className="w-16 h-16 mr-4 flex items-center justify-center">
+                      <CloudOff className="h-8 w-8 text-blue-300/50" />
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-2xl font-bold text-blue-100">{weatherData.temperature.toFixed(1)}°C</h3>
+                    <p className="text-blue-300 capitalize">{weatherData.description}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-blue-400">Humidity</p>
+                    <p className="text-lg text-blue-200">{weatherData.humidity}%</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-400">Pressure</p>
+                    <p className="text-lg text-blue-200">{weatherData.pressure} hPa</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-400">Wind Speed</p>
+                    <p className="text-lg text-blue-200">{weatherData.windSpeed.toFixed(1)} km/h</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-400">Last Updated</p>
+                    <p className="text-lg text-blue-200">{new Date(weatherData.timestamp).toLocaleTimeString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-800 bg-opacity-50 rounded-lg shadow-md p-4 border border-blue-800">
+            <h2 className="text-lg font-semibold text-blue-100 mb-4">Forecast (next periods)</h2>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {forecastData.slice(0, 5).map((d, idx) => (
+                <div key={idx} className="text-center p-3 rounded-lg bg-slate-900 bg-opacity-50 border border-blue-900">
+                  <p className="font-medium text-blue-200">{new Date(d.timestamp).toLocaleString()}</p>
+                  <p className="text-lg font-bold text-blue-100">{Math.round(d.temperature)}°C</p>
+                  <div className="w-full bg-slate-700 rounded-full h-1.5 mt-2">
+                    <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${Math.round(d.rainProbability)}%` }}></div>
+                  </div>
+                  <p className="text-xs text-blue-400 mt-1">{Math.round(d.rainProbability)}% rain</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-800">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-blue-100">Rain Forecasting Portal</h1>
+            <p className="text-blue-300">Check your device live data, reports, and local weather.</p>
+          </div>
+          <button onClick={() => navigate('/login')} className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+            <LogIn className="h-4 w-4 mr-2" />
+            Login
+          </button>
+        </div>
+
+        {/* Lookup */}
+        <form onSubmit={handleLookup} className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6 mb-6">
+          <label className="block text-sm font-medium text-white/90 mb-2">Enter your phone number</label>
+          <div className="flex gap-3 flex-col md:flex-row">
+            <input
+              type="text"
+              placeholder="e.g. +250788123456"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            />
+            <button type="submit" disabled={loading} className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-60">
+              {loading ? 'Looking up...' : 'Find Device'}
+            </button>
+          </div>
+          {device ? (
+            <div className="mt-3 text-sm text-white/70">Device: <span className="font-mono text-white">{device.name}</span> (<span className="font-mono">{device.deviceId}</span>)</div>
+          ) : (
+            <div className="mt-3 text-sm text-white/50">No device selected.</div>
+          )}
+        </form>
+
+        {/* Tabs */}
+        <div className="mb-4 flex gap-2">
+          <button onClick={() => setActiveTab('live')} className={`px-4 py-2 rounded-lg border ${activeTab==='live' ? 'bg-white/10 border-white/30 text-white' : 'bg-white/5 border-white/10 text-white/70 hover:text-white'}`}>Live Data</button>
+          <button onClick={() => setActiveTab('reports')} className={`px-4 py-2 rounded-lg border ${activeTab==='reports' ? 'bg-white/10 border-white/30 text-white' : 'bg-white/5 border-white/10 text-white/70 hover:text-white'}`}>Reports</button>
+          <button onClick={() => setActiveTab('weather')} className={`px-4 py-2 rounded-lg border ${activeTab==='weather' ? 'bg-white/10 border-white/30 text-white' : 'bg-white/5 border-white/10 text-white/70 hover:text-white'}`}>Weather</button>
+        </div>
+
+        {/* Panels */}
+        <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6">
+          {activeTab === 'live' && renderLive()}
+          {activeTab === 'reports' && renderReports()}
+          {activeTab === 'weather' && renderWeather()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Portal;
+
+
