@@ -10,7 +10,8 @@ const {
     updateLastDataReceived,
     configureDeviceViaMQTT,
     getRealtimeDeviceData,
-    getAllDevicesLastData
+    getAllDevicesLastData,
+    getHistoricalSensorData
 } = require('../controllers/deviceController');
 
 const { authenticateJWT, isAdmin } = require('../middleware/authValidation');
@@ -30,6 +31,10 @@ router.route('/realtime-data')
 // Route to get last data for all devices
 router.route('/last-data')
     .get(authenticateJWT, getAllDevicesLastData);
+
+// Route to get historical sensor data for reports
+router.route('/historical-data')
+    .get(authenticateJWT, getHistoricalSensorData);
 
 // Route to get device by deviceId
 router.route('/deviceId/:deviceId')

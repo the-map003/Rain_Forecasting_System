@@ -319,3 +319,104 @@ exports.getRealtimeDeviceData = async (req, res) => {
         });
     }
 };
+
+// @desc    Get historical sensor data for reports
+// @route   GET /api/devices/historical-data
+// @access  Private
+exports.getHistoricalSensorData = async (req, res) => {
+    try {
+        const { deviceId, startDate, endDate } = req.query;
+        
+        // Build query based on parameters
+        const query = {};
+        
+        // Filter by device if specified
+        if (deviceId && deviceId !== 'all') {
+            query.deviceId = deviceId;
+        }
+        
+        // Filter by date range if specified
+        if (startDate || endDate) {
+            query.timestamp = {};
+            if (startDate) {
+                query.timestamp.$gte = new Date(startDate);
+            }
+            if (endDate) {
+                // Set endDate to end of day
+                const endDateTime = new Date(endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                query.timestamp.$lte = endDateTime;
+            }
+        }
+        
+        // Get SensorData model
+        const SensorData = require('../models/SensorData');
+        
+        // Fetch data with pagination
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 1000;
+        const skip = (page - 1) * limit;
+        
+        // Get data and total count
+        const data = await SensorData.find(query)
+            .sort({ timestamp: -1 })
+            .skip(skip)
+            .limit(limit);
+            
+        const total = await SensorData.countDocuments(query);
+        
+        // Get device information to include in response
+        const devices = await Device.find();
+        const deviceMap = {};
+        devices.forEach(device => {
+            deviceMap[device.deviceId] = {
+                name: device.name,
+                _id: device._id
+            };
+        });
+        
+        // Calculate summary statistics
+        const stats = {
+            totalRecords: total,
+            avgTemperature: 0,
+            avgHumidity: 0,
+            avgPressure: 0,
+            rainEvents: 0
+        };
+        
+        if (data.length > 0) {
+            // Calculate averages
+            const tempSum = data.reduce((sum, record) => sum + record.temperature, 0);
+            const humiditySum = data.reduce((sum, record) => sum + record.humidity, 0);
+            const pressureSum = data.reduce((sum, record) => sum + record.pressure, 0);
+            const rainEvents = data.filter(record => record.rainDetected).length;
+            
+            stats.avgTemperature = (tempSum / data.length).toFixed(1);
+            stats.avgHumidity = (humiditySum / data.length).toFixed(1);
+            stats.avgPressure = (pressureSum / data.length).toFixed(1);
+            stats.rainEvents = rainEvents;
+        }
+        
+        res.status(200).json({
+            success: true,
+            data: {
+                records: data,
+                stats,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    pages: Math.ceil(total / limit)
+                },
+                deviceMap
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching historical sensor data:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
